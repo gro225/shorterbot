@@ -1,0 +1,11 @@
+services:
+  summarizer-bot:
+    build: .
+    container_name: summarizer-bot
+    restart: unless-stopped
+    env_file: .env
+    network_mode: host
+    volumes:
+      - whisper-cache:/root/.cache
+volumes:
+  whisper-cache:
