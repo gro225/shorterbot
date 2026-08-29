@@ -41,11 +41,14 @@ async def summarize(text: str, mode: str = "default") -> str:
     if len(user_msg) > config.max_input_chars:
         user_msg = user_msg[: config.max_input_chars] + "\n\n[...текст обрезан...]"
 
-    max_tokens = 16384 if mode == "detailed" else 4096
+    max_tokens = 32768 if mode == "detailed" else 8192
 
     payload = {
         "model": config.llm_model,
         "max_tokens": max_tokens,
+        # Gemini 2.5 — thinking-модель, и reasoning-токены списываются с max_tokens:
+        # без этого ответ обрывался на полуслове. Для пересказа размышления не нужны.
+        "reasoning_effort": "none",
         "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": user_msg},
@@ -72,4 +75,10 @@ async def summarize(text: str, mode: str = "default") -> str:
             resp.raise_for_status()
         data = resp.json()
 
-    return data["choices"][0]["message"]["content"]
+    choice = data["choices"][0]
+    result = choice["message"].get("content") or ""
+    if choice.get("finish_reason") == "length":
+        # обрыв виден пользователю, а не молча уезжает в никуда
+        log.warning("LLM output truncated (max_tokens=%d, usage=%s)", max_tokens, data.get("usage"))
+        result += "\n\n_[ответ обрезан по лимиту длины]_"
+    return result
