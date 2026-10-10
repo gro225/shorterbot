@@ -3,8 +3,10 @@ set -euo pipefail
 
 SSH_KEY="$HOME/.ssh/claude_key"
 SSH_OPTS="-i $SSH_KEY -p 2223 -o StrictHostKeyChecking=no"
-# LAN по умолчанию; вне дома: DATADOM_HOST=<tailscale-ip> (tailscale) ./deploy.sh
-SERVER="claude-bot@${DATADOM_HOST:-<lan-ip>}"
+# Адрес сервера в deploy.local (gitignored), см. deploy.local.example.
+# Вне дома можно переопределить: DATADOM_HOST=<tailscale-ip> ./deploy.sh
+[ -f "$(dirname "$0")/deploy.local" ] && . "$(dirname "$0")/deploy.local"
+SERVER="claude-bot@${DATADOM_HOST:?задай DATADOM_HOST или deploy.local}"
 REMOTE_DIR="summarizer_bot"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 

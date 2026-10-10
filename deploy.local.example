@@ -1,0 +1,2 @@
+# Скопируй в deploy.local (он в .gitignore) и впиши свой сервер.
+DATADOM_HOST=user@your-server
