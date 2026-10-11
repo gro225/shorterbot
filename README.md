@@ -70,7 +70,12 @@ flowchart LR
 
 ## Стек
 
-**Python 3.12** · **aiogram 3** · **Gemini 2.5 Flash** через OpenAI-совместимый API · **faster-whisper** (int8, CPU) · **yt-dlp** с deno как JS-рантаймом · **ffmpeg** · **trafilatura** · **pdfplumber**, **python-docx** · **httpx** · **telegramify-markdown** · **Docker Compose**.
+- **Бот:** Python 3.12 и aiogram 3, ответы размечаются через telegramify-markdown.
+- **Пересказ:** Gemini 2.5 Flash через OpenAI-совместимый API, запросы идут через httpx.
+- **Речь:** faster-whisper на процессоре (int8), звук декодирует ffmpeg.
+- **Видео:** yt-dlp, для YouTube ему нужен deno как JS-рантайм.
+- **Статьи и файлы:** trafilatura для страниц, pdfplumber и python-docx для документов.
+- **Запуск:** Docker Compose.
 
 ## Запустить у себя
 
