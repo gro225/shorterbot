@@ -4,7 +4,7 @@
 
 ![Python](.github/badges/python.svg)
 ![aiogram](.github/badges/aiogram.svg)
-![Gemini](.github/badges/gemini.svg)
+![LLM](.github/badges/llm.svg)
 ![Whisper](.github/badges/whisper.svg)
 ![Docker](.github/badges/docker.svg)
 
