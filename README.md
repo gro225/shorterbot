@@ -2,11 +2,11 @@
 
 **Telegram-бот, который читает за тебя.** Присылаешь статью, PDF, видео с YouTube или голосовое на двадцать минут, а в ответ получаешь суть на русском, на каком бы языке ни был исходник.
 
-![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
-![aiogram](https://img.shields.io/badge/aiogram-3-2CA5E0?logo=telegram&logoColor=white)
-![Gemini](https://img.shields.io/badge/Gemini-2.5_Flash-8E75B2?logo=googlegemini&logoColor=white)
-![Whisper](https://img.shields.io/badge/faster--whisper-local-412991)
-![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)
+![Python](.github/badges/python.svg)
+![aiogram](.github/badges/aiogram.svg)
+![Gemini](.github/badges/gemini.svg)
+![Whisper](.github/badges/whisper.svg)
+![Docker](.github/badges/docker.svg)
 
 ---
 
