@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import tempfile
+import threading
 from pathlib import Path
 
 import httpx
@@ -151,30 +152,10 @@ def extract_youtube_subs(url: str) -> str:
 
 def extract_video_whisper(url: str) -> str:
     """Download audio via yt-dlp, transcribe with faster-whisper."""
-    import subprocess
-
     from config import config
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        audio_path = f"{tmpdir}/audio.mp3"
-        proxy_args = ["--proxy", _PROXY_URL] if _PROXY_URL else []
-        result = subprocess.run(
-            [
-                "yt-dlp", *proxy_args, "-x", "--audio-format", "mp3",
-                "-o", audio_path, url,
-            ],
-            capture_output=True, text=True, timeout=300,
-        )
-        if result.returncode != 0:
-            raise ValueError(f"Не удалось скачать аудио: {result.stderr[:200]}")
-
-        # Find the actual output file (yt-dlp may add extension)
-        candidates = list(Path(tmpdir).glob("audio*"))
-        if not candidates:
-            raise ValueError("Аудиофайл не найден после скачивания")
-        actual = candidates[0]
-
-        return _transcribe_file(actual, config.whisper_model)
+        return _transcribe_file(download_audio(url, tmpdir), config.whisper_model)
 
 
 def extract_telegram_voice(file_path: Path) -> str:
@@ -184,15 +165,94 @@ def extract_telegram_voice(file_path: Path) -> str:
 
 
 def _transcribe_file(path: Path, model_size: str = "base") -> str:
+    text, lang = transcribe(path, model_size)
+    return f"[Транскрипция, язык: {lang}]\n\n{text}"
+
+
+_models: dict = {}
+# модель грузится один раз, а распознавание идёт по одному: на CPU параллельные
+# прогоны только мешают друг другу
+_whisper_lock = threading.Lock()
+
+
+def _get_model(model_size: str):
     from faster_whisper import WhisperModel
 
-    model = WhisperModel(model_size, device="cpu", compute_type="int8")
-    segments, info = model.transcribe(str(path), beam_size=5)
-    text = " ".join(s.text.strip() for s in segments)
+    if model_size not in _models:
+        log.info("Loading whisper model %s", model_size)
+        _models[model_size] = WhisperModel(
+            model_size, device="cpu", compute_type="int8", cpu_threads=8
+        )
+    return _models[model_size]
+
+
+def _decode_audio(path: Path):
+    """Decode to 16 kHz mono float32 via ffmpeg.
+
+    Свой декодер вместо встроенного: faster-whisper 1.2.1 зовёт
+    av.open(metadata_errors=...), а в свежем PyAV этого аргумента нет.
+    """
+    import subprocess
+
+    import numpy as np
+
+    result = subprocess.run(
+        ["ffmpeg", "-nostdin", "-loglevel", "error", "-i", str(path),
+         "-f", "s16le", "-ac", "1", "-ar", "16000", "-"],
+        capture_output=True, timeout=600,
+    )
+    if result.returncode != 0:
+        raise ValueError(f"ffmpeg не смог прочитать аудио: {result.stderr.decode(errors='replace')[:200]}")
+    return np.frombuffer(result.stdout, np.int16).astype(np.float32) / 32768.0
+
+
+def transcribe(path: Path, model_size: str | None = None) -> tuple[str, str]:
+    """Whisper transcript split into paragraphs on pauses. Returns (text, language)."""
+    from config import config
+
+    model_size = model_size or config.whisper_model
+    with _whisper_lock:
+        model = _get_model(model_size)
+        segments, info = model.transcribe(_decode_audio(path), beam_size=5, vad_filter=True)
+
+        paragraphs: list[str] = []
+        current: list[str] = []
+        prev_end = 0.0
+        for seg in segments:
+            piece = seg.text.strip()
+            if not piece:
+                continue
+            size = sum(len(x) for x in current)
+            # новый абзац на паузе или когда абзац разросся и фраза закончилась
+            if current and (seg.start - prev_end > 2.0 or (size > 600 and current[-1][-1:] in ".!?…")):
+                paragraphs.append(" ".join(current))
+                current = []
+            current.append(piece)
+            prev_end = seg.end
+        if current:
+            paragraphs.append(" ".join(current))
+
+    text = "\n\n".join(paragraphs)
     if not text:
         raise ValueError("Whisper не распознал текст")
-    lang = info.language
-    return f"[Транскрипция, язык: {lang}]\n\n{text}"
+    return text, info.language
+
+
+def download_audio(url: str, tmpdir: str) -> Path:
+    """Download audio of any yt-dlp supported page into tmpdir."""
+    import subprocess
+
+    proxy_args = ["--proxy", _PROXY_URL] if _PROXY_URL else []
+    result = subprocess.run(
+        ["yt-dlp", *proxy_args, "-x", "--audio-format", "mp3", "-o", f"{tmpdir}/audio.%(ext)s", url],
+        capture_output=True, text=True, timeout=600,
+    )
+    if result.returncode != 0:
+        raise ValueError(f"Не удалось скачать аудио: {result.stderr[:200]}")
+    candidates = list(Path(tmpdir).glob("audio*"))
+    if not candidates:
+        raise ValueError("Аудиофайл не найден после скачивания")
+    return candidates[0]
 
 
 # ---------------------------------------------------------------------------
